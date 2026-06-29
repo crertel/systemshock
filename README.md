@@ -53,6 +53,50 @@ The following CMake options are supported in the build process:
 
 If you find yourself needing to modify the build script for Shockolate itself, `CMakeLists.txt` is the place to look into.
 
+## With Nix (Linux/macOS)
+
+A `flake.nix` and `justfile` are provided for a reproducible build using system
+libraries (no `build_deps.sh` needed). Requires Nix with flakes enabled.
+
+Build and run the packaged game directly:
+```
+nix run .#shockolate          # or: just play
+```
+
+Or work in a dev shell (provides cmake, SDL2, SDL2_mixer, FluidSynth, GLEW,
+OpenGL, etc.) and use the `just` recipes:
+```
+nix develop          # enter the dev shell
+just build           # configure + build into build/
+just run -nosplash   # build and run from the repo root
+just                 # list all recipes
+```
+
+The dev-shell build runs CMake with the system-library options
+(`ENABLE_SDL2=ON ENABLE_SOUND=ON ENABLE_FLUIDSYNTH=ON ENABLE_OPENGL=ON`) plus
+`-DCMAKE_POLICY_VERSION_MINIMUM=3.5` so modern CMake accepts the project.
+
+### Game assets
+
+You still need the original game assets (see Prerequisites above). The packaged
+game (`nix run`) looks for them in a working directory:
+`$SHOCKOLATE_HOME`, else `$XDG_DATA_HOME/shockolate`, else
+`~/.local/share/shockolate`. It provides the `shaders/` itself and writes saves
+there.
+
+Shockolate expects a lowercase `res/data/` tree, but the original DOS CD-ROM
+ships UPPERCASE filenames (`DATA/`, `SOUND/`), which matters on a
+case-sensitive filesystem. `install-assets` builds the lowercase tree for you
+and links a General MIDI SoundFont so FluidSynth music plays:
+```
+# Point it at the directory containing DATA/ and SOUND/
+just install-assets /path/to/your/SSHOCK
+just play
+```
+
+For the dev-shell build (`just run`), the game runs from the repo root instead,
+so place your assets in `res/data/` (and `res/sound/`) next to `CMakeLists.txt`.
+
 
 Command line parameters
 ============
