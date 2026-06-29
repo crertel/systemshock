@@ -71,18 +71,23 @@ with the real game bitmaps: each tile's floor/ceiling/wall texture index →
 color and multiplies the texture, so darker areas read correctly. If
 `texture.res` isn't loaded, faces fall back to hue-coded colors by texture index.
 
-## Known simplifications (3D)
+## Geometry accuracy
 
-The geometry is built for legibility, not pixel-accurate parity with the
-in-game terrain renderer:
+Floors and ceilings are a port of the engine's terrain tables
+(`frtables.c` `tile_floors[]` + `pt_deref[]`, `frterr.c` `merge_masks[]`), so
+all 51 tile types are shaped correctly: basic ramps, diagonals, ridge/valley
+("zany") slopes, diagonal splits, octagons, triangles, and quarter/thin-wall
+tiles. Per-corner heights come from the tile's `floor`/`ceil`/`param` fields, and
+ceilings follow the tile's mirror bits (MATCH / MIRROR / CFLAT / FFLAT) — e.g. an
+FFLAT tile renders a flat floor under a sloped ceiling. Texture rotation
+(floor/ceiling) and L/R flip (walls) flags are applied.
 
-- Floors use real per-corner slope heights for the common slope tiles
-  (`SLOPEUP_*`); ridge/valley (`SLOPECC/CV`) slopes are approximated, and
-  diagonal "solid corner" tiles render as flat. Ceilings are drawn flat.
-- Walls use flat per-tile floor/ceiling heights (slope on wall edges ignored).
-- Texture UVs are one tile per face (floors/ceilings) and one tile-height of
-  vertical repeat on walls; per-tile texture rotation and L/R flip flags aren't
-  applied.
+### Remaining simplifications
+
+- Walls between tiles use flat per-tile floor/ceiling heights, so a wall along a
+  sloped edge is drawn straight rather than following the slope. Wall V is locked
+  to absolute world height so vertical texturing lines up across stacked tiles.
+- The vertical-split (`VSPLIT`) tile is drawn as a single flat floor.
 
 ## Files
 

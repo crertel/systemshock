@@ -8,6 +8,7 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { rotUV } from './map.js';
 
 export class Viewer3D {
   constructor(container) {
@@ -111,46 +112,49 @@ export class Viewer3D {
     };
 
     const cornerXZ = (x, y) => [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]];
-    const FUV = [[0, 0], [1, 0], [1, 1], [0, 1]];
 
     for (let y = 0; y < level.ySize; y++) {
       for (let x = 0; x < level.xSize; x++) {
         const te = level.tile(x, y);
         if (te.tiletype === 0) continue;
 
-        const c = cornerXZ(x, y);
-        const fH = level.floorCorners(te).map((h) => h * step);
-        const cH = level.ceilCorners(te).map((h) => h * step);
-
-        // Floor.
+        // Floor polygons (real per-corner heights, slopes, diagonals, splits).
         const fNum = resolveNum(te.texFloor);
         const fb = bucket(fNum, false);
-        addFace(fb,
-          [[c[0][0], fH[0], c[0][1]], [c[1][0], fH[1], c[1][1]],
-           [c[2][0], fH[2], c[2][1]], [c[3][0], fH[3], c[3][1]]],
-          FUV, colorFor(fb, te.lightFloor, 1.0, fNum));
+        const fcol = colorFor(fb, te.lightFloor, 1.0, fNum);
+        for (const poly of level.floorPolys(te)) {
+          fb.builder.polyFan(
+            poly.map((p) => [x + p.x, p.z * step, y + p.y]),
+            fcol, poly.map((p) => rotUV(p.x, p.y, te.rotFloor)));
+        }
 
-        // Ceiling.
+        // Ceiling polygons (mirror/flat per the tile's mirror bits).
         const cNum = resolveNum(te.texCeil);
         const cb = bucket(cNum, true);
-        addFace(cb,
-          [[c[0][0], cH[0], c[0][1]], [c[1][0], cH[1], c[1][1]],
-           [c[2][0], cH[2], c[2][1]], [c[3][0], cH[3], c[3][1]]],
-          FUV, colorFor(cb, te.lightCeil, 0.7, cNum));
+        const ccol = colorFor(cb, te.lightCeil, 0.7, cNum);
+        for (const poly of level.ceilPolys(te)) {
+          cb.builder.polyFan(
+            poly.map((p) => [x + p.x, p.z * step, y + p.y]),
+            ccol, poly.map((p) => rotUV(p.x, p.y, te.rotCeil)));
+        }
 
-        // Walls.
+        // Walls between tiles (flat per-tile heights). V follows absolute world
+        // height so vertical texturing lines up across stacked walls; U honors
+        // the tile's L/R flip flag.
+        const c = cornerXZ(x, y);
         const wNum = resolveNum(te.texWall);
         const wb = bucket(wNum, false);
         const wcol = colorFor(wb, 7, 0.85, wNum);
+        const u0 = te.wallFlip ? 1 : 0, u1 = te.wallFlip ? 0 : 1;
         const fl = te.floorH * step, cl = te.ceilH * step;
         const neigh = [[x, y - 1], [x + 1, y], [x, y + 1], [x - 1, y]];
         for (let e = 0; e < 4; e++) {
           const a = c[e], b = c[(e + 1) % 4];
           const emit = (yb, yt) => {
             if (yt - yb < 1e-4) return;
-            addFace(bucket(wNum, false),
+            addFace(wb,
               [[a[0], yb, a[1]], [b[0], yb, b[1]], [b[0], yt, b[1]], [a[0], yt, a[1]]],
-              [[0, 0], [1, 0], [1, yt - yb], [0, yt - yb]], wcol);
+              [[u0, yb], [u1, yb], [u1, yt], [u0, yt]], wcol);
           };
           const [nx, ny] = neigh[e];
           if (level.isSolid(nx, ny)) {
@@ -201,6 +205,12 @@ class MeshBuilder {
   quad(a, b, c, d, color, uv) {
     this.tri(a, b, c, color, uv[0], uv[1], uv[2]);
     this.tri(a, c, d, color, uv[0], uv[2], uv[3]);
+  }
+  // Triangle-fan a 3- or 4-vertex polygon.
+  polyFan(verts, color, uvs) {
+    for (let i = 1; i < verts.length - 1; i++) {
+      this.tri(verts[0], verts[i], verts[i + 1], color, uvs[0], uvs[i], uvs[i + 1]);
+    }
   }
   toMesh(material) {
     const g = new THREE.BufferGeometry();
