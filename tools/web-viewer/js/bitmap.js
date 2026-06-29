@@ -105,6 +105,23 @@ export function toImageData(decoded, pal, { transparentIndex0 = true } = {}) {
   return img;
 }
 
+// Indexed pixels -> RGBA Uint8Array (no DOM). For world textures pass
+// opaque:true so index 0 is not treated as transparent.
+export function toRGBA(decoded, pal, { opaque = false } = {}) {
+  const { w, h, indices, flags } = decoded;
+  const out = new Uint8Array(w * h * 4);
+  const trans = !opaque && (flags & BMF_TRANS);
+  for (let p = 0; p < w * h; p++) {
+    const idx = indices[p];
+    const o = p * 4;
+    out[o] = pal[idx * 3];
+    out[o + 1] = pal[idx * 3 + 1];
+    out[o + 2] = pal[idx * 3 + 2];
+    out[o + 3] = (trans && idx === 0) ? 0 : 255;
+  }
+  return out;
+}
+
 export function bitmapToCanvas(decoded, pal, opts) {
   const img = toImageData(decoded, pal, opts);
   const canvas = document.createElement('canvas');

@@ -6,6 +6,7 @@ import { decodeBitmap, bitmapToCanvas } from './bitmap.js';
 import { decodeStrings } from './strings.js';
 import { decodeFont, fontToCanvas } from './font.js';
 import { findLevels, LevelMap, levelBase } from './map.js';
+import { TextureProvider, findTextureRes } from './textures.js';
 import { Viewer3D } from './viewer3d.js';
 
 const state = {
@@ -17,6 +18,7 @@ const state = {
   showCeiling: true,
   viewer3d: null,
   selection: null,
+  current3D: null, // { res, level }
 };
 
 const els = {};
@@ -41,7 +43,8 @@ window.addEventListener('DOMContentLoaded', () => {
   els.search.oninput = renderList;
   els.palSelect.onchange = () => {
     state.activePal = state.palettes[els.palSelect.value]?.pal || fallbackPalette();
-    if (state.selection) openResource(state.selection);
+    if (state.current3D) open3DLevel(state.current3D.res, state.current3D.level);
+    else if (state.selection) openResource(state.selection);
   };
   els.zoom.oninput = () => { state.zoom = +els.zoom.value; if (state.selection) openResource(state.selection); };
   els.ceiling.onchange = () => {
@@ -160,12 +163,14 @@ function selectRow(row) {
 
 function teardown3D() {
   if (state.viewer3d) { state.viewer3d.dispose(); state.viewer3d = null; }
+  state.current3D = null;
   els.ceiling.parentElement.style.display = 'none';
 }
 
 function open3DLevel(res, level) {
   teardown3D();
   state.selection = null;
+  state.current3D = { res, level };
   els.detail.innerHTML = '';
   els.ceiling.parentElement.style.display = '';
   const wrap = document.createElement('div');
@@ -173,14 +178,18 @@ function open3DLevel(res, level) {
   els.detail.appendChild(wrap);
   try {
     const map = new LevelMap(res, level);
+    const texRes = findTextureRes(state.files);
+    const provider = texRes ? new TextureProvider(texRes, state.activePal) : null;
     const v = new Viewer3D(wrap);
     state.viewer3d = v;
     v.setShowCeiling(state.showCeiling);
-    v.load(map);
+    v.load(map, provider);
     v.resize();
     const info = document.createElement('div');
     info.className = 'meta';
-    info.textContent = `Level ${level} • ${map.xSize}×${map.ySize} tiles • drag to orbit, scroll to zoom, right-drag to pan`;
+    info.textContent = `Level ${level} • ${map.xSize}×${map.ySize} tiles • ` +
+      `${provider ? 'textured' : 'load texture.res for textures'} • ` +
+      `drag to orbit, scroll to zoom, right-drag to pan`;
     els.detail.appendChild(info);
   } catch (err) {
     wrap.innerHTML = `<div class="error">Failed to build level: ${err.message}</div>`;

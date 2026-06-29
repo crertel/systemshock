@@ -55,9 +55,21 @@ time so the browser can fetch three.js from unpkg.
 | Strings (compound, NUL-terminated) | ✅ |
 | Fonts (mono + color glyph strips) | ✅ |
 | Level geometry: floors, ceilings, walls, ramps | ✅ |
+| Real `texture.res` textures on level geometry | ✅ (load `texture.res` + `gamepal.res`) |
 
 Validated against a real DOS CD-ROM install: `texture.res` decodes 955 frames
-(16/32/64/128 px) with zero failures; all 16 levels parse from `archive.dat`.
+(16/32/64/128 px) with zero failures; all 16 levels parse from `archive.dat`;
+level 0 resolves all 2820 face-texture lookups (52 distinct textures, 0 missing).
+
+## 3D textures
+
+When both `texture.res` and `gamepal.res` are loaded, level faces are textured
+with the real game bitmaps: each tile's floor/ceiling/wall texture index →
+`loved_textures` (the per-level texture list) → the 64px texture in
+`texture.res`, decoded with the active palette and applied as a three.js
+`DataTexture`. The tile's light value (0=bright..15=dark) is baked into vertex
+color and multiplies the texture, so darker areas read correctly. If
+`texture.res` isn't loaded, faces fall back to hue-coded colors by texture index.
 
 ## Known simplifications (3D)
 
@@ -68,10 +80,9 @@ in-game terrain renderer:
   (`SLOPEUP_*`); ridge/valley (`SLOPECC/CV`) slopes are approximated, and
   diagonal "solid corner" tiles render as flat. Ceilings are drawn flat.
 - Walls use flat per-tile floor/ceiling heights (slope on wall edges ignored).
-- Faces are **colored** by texture index + tile light value rather than textured
-  with the real `texture.res` bitmaps. (Texture mapping onto geometry is the
-  natural next step — `loved_textures` → `texture.res` resolution is already
-  parsed in `js/map.js`.)
+- Texture UVs are one tile per face (floors/ceilings) and one tile-height of
+  vertical repeat on walls; per-tile texture rotation and L/R flip flags aren't
+  applied.
 
 ## Files
 
@@ -85,6 +96,7 @@ js/bitmap.js      FLAT8 / RSD8 bitmap decode
 js/strings.js     string-table decode
 js/font.js        font glyph decode
 js/map.js         FullMap + MapElem parse, tile->corner-height
-js/viewer3d.js    three.js geometry builder + orbit camera
+js/textures.js    texture-number -> texture.res bitmap resolution
+js/viewer3d.js    three.js geometry builder + textures + orbit camera
 js/app.js         UI orchestration
 ```

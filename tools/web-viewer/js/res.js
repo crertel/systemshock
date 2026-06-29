@@ -22,10 +22,16 @@ const SIGNATURE = [
 ];
 
 export class ResFile {
-  constructor(buffer, name = '') {
+  constructor(input, name = '') {
     this.name = name;
-    this.bytes = new Uint8Array(buffer);
-    this.view = new DataView(buffer);
+    // Accept an ArrayBuffer or any typed-array view (e.g. a Node Buffer, whose
+    // .buffer may be a shared pool with a nonzero byteOffset).
+    if (ArrayBuffer.isView(input)) {
+      this.bytes = new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
+    } else {
+      this.bytes = new Uint8Array(input);
+    }
+    this.view = new DataView(this.bytes.buffer, this.bytes.byteOffset, this.bytes.byteLength);
     this.entries = []; // dir order, excluding deleted (id 0)
     this.byId = new Map();
     this._parse();
