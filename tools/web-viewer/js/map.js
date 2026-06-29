@@ -149,11 +149,14 @@ export class LevelMap {
           // FFLAT forces floor flat; otherwise param raises marked corners.
           z = te.floorH + (usesParam && te.mirror !== MIR_FFLAT ? te.param : 0);
         } else if (te.mirror === MIR_CFLAT) {
-          z = te.ceilH;
+          z = te.ceilH; // flat ceiling
         } else if (te.mirror === MIR_MIRROR) {
-          z = te.ceilH + (usesParam ? te.param : 0);
-        } else { // MATCH or FFLAT: ceiling dips where floor rises (constant gap)
-          z = te.ceilH - (usesParam ? te.param : 0);
+          // ceiling dips (ceil-param) at the floor's param corners
+          z = usesParam ? te.ceilH - te.param : te.ceilH;
+        } else {
+          // MATCH / FFLAT: ceiling dips at the NON-param corners (engine
+          // merge_masks XORs the z-entry: 0x00->CPRM, 0x80->CEIL)
+          z = usesParam ? te.ceilH : te.ceilH - te.param;
         }
         return { x: pos[0], y: pos[1], z };
       });
