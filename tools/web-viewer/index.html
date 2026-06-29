@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>System Shock Resource Viewer</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <header>
+    <h1>System Shock <span>Resource Viewer</span></h1>
+    <div class="controls">
+      <button id="open-btn">Open files…</button>
+      <input id="file-input" type="file" multiple accept=".res,.dat,.RES,.DAT" hidden />
+      <label>Palette
+        <select id="pal-select"></select>
+      </label>
+      <label>Zoom
+        <input id="zoom" type="range" min="1" max="12" value="4" />
+      </label>
+      <label class="ceiling" style="display:none">
+        <input id="ceiling-toggle" type="checkbox" checked /> ceiling
+      </label>
+    </div>
+  </header>
+
+  <main>
+    <aside id="drop">
+      <div class="sidebar-controls">
+        <select id="type-filter">
+          <option value="all">all types</option>
+          <option value="level">3D levels</option>
+          <option value="image">image</option>
+          <option value="string">string</option>
+          <option value="palette">palette</option>
+          <option value="font">font</option>
+          <option value="app">app (level data)</option>
+          <option value="obj3d">obj3d</option>
+          <option value="movie">movie</option>
+          <option value="voc">voc</option>
+          <option value="unknown">unknown</option>
+        </select>
+        <input id="search" type="search" placeholder="filter by id / type / file" />
+      </div>
+      <div id="res-list"></div>
+    </aside>
+    <section id="detail"></section>
+  </main>
+
+  <footer><span id="status"></span></footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

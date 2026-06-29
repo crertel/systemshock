@@ -98,6 +98,12 @@ install-soundfont:
     ln -sfn "$sf" "$home/res/music.sf2"
     echo "Linked SoundFont -> $home/res/music.sf2"
 
+# Serve the web resource viewer at http://localhost:8000/ (needs a real HTTP
+# server because it uses ES modules + a three.js CDN import map).
+viewer port="8000":
+    @echo "Serving resource viewer at http://localhost:{{port}}/"
+    cd tools/web-viewer && nix run nixpkgs#python3 -- -m http.server {{port}}
+
 # Build the bundled dependencies (SDL2, SDL2_mixer, FluidSynth) the old way.
 # Not needed in the nix dev shell, but kept for parity with the README.
 deps:
