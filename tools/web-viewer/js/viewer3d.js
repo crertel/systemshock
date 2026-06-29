@@ -113,6 +113,15 @@ export class Viewer3D {
 
     const cornerXZ = (x, y) => [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]];
 
+    // Per-tile corner heights ([SW,SE,NE,NW] floor/ceil in steps), cached.
+    const cornerCache = new Map();
+    const corners = (x, y) => {
+      const k = y * level.xSize + x;
+      let v = cornerCache.get(k);
+      if (!v) { v = level.corners(level.tile(x, y)); cornerCache.set(k, v); }
+      return v;
+    };
+
     for (let y = 0; y < level.ySize; y++) {
       for (let x = 0; x < level.xSize; x++) {
         const te = level.tile(x, y);
@@ -138,32 +147,44 @@ export class Viewer3D {
             ccol, poly.map((p) => rotUV(p.x, p.y, te.rotCeil)));
         }
 
-        // Walls between tiles (flat per-tile heights). V follows absolute world
-        // height so vertical texturing lines up across stacked walls; U honors
-        // the tile's L/R flip flag.
-        const c = cornerXZ(x, y);
+        // Walls between tiles. Tops/bottoms follow the actual per-corner
+        // floor/ceiling heights of this tile and its neighbour, so walls along
+        // sloped edges slant correctly. V follows absolute world height so
+        // vertical texturing lines up; U honors the tile's L/R flip flag.
+        const cw = cornerXZ(x, y); // world XZ of [SW, SE, NE, NW]
+        const Ac = corners(x, y);
         const wNum = resolveNum(te.texWall);
         const wb = bucket(wNum, false);
         const wcol = colorFor(wb, 7, 0.85, wNum);
         const u0 = te.wallFlip ? 1 : 0, u1 = te.wallFlip ? 0 : 1;
-        const fl = te.floorH * step, cl = te.ceilH * step;
         const neigh = [[x, y - 1], [x + 1, y], [x, y + 1], [x - 1, y]];
+        // emit a wall along edge P0..P1 from per-endpoint bottom to top heights.
+        const emit = (P0, P1, b0, b1, t0, t1) => {
+          b0 = Math.min(b0, t0); b1 = Math.min(b1, t1);
+          if (t0 - b0 < 1e-4 && t1 - b1 < 1e-4) return;
+          const yb0 = b0 * step, yb1 = b1 * step, yt0 = t0 * step, yt1 = t1 * step;
+          addFace(wb,
+            [[P0[0], yb0, P0[1]], [P1[0], yb1, P1[1]], [P1[0], yt1, P1[1]], [P0[0], yt0, P0[1]]],
+            [[u0, yb0], [u1, yb1], [u1, yt1], [u0, yt0]], wcol);
+        };
         for (let e = 0; e < 4; e++) {
-          const a = c[e], b = c[(e + 1) % 4];
-          const emit = (yb, yt) => {
-            if (yt - yb < 1e-4) return;
-            addFace(wb,
-              [[a[0], yb, a[1]], [b[0], yb, b[1]], [b[0], yt, b[1]], [a[0], yt, a[1]]],
-              [[u0, yb], [u1, yb], [u1, yt], [u0, yt]], wcol);
-          };
+          const i0 = e, i1 = (e + 1) % 4;
+          const P0 = cw[i0], P1 = cw[i1];
           const [nx, ny] = neigh[e];
           if (level.isSolid(nx, ny)) {
-            emit(fl, cl);
+            emit(P0, P1, Ac.floor[i0], Ac.floor[i1], Ac.ceil[i0], Ac.ceil[i1]);
           } else {
-            const nt = level.tile(nx, ny);
-            const nfl = nt.floorH * step, ncl = nt.ceilH * step;
-            if (nfl > fl) emit(fl, nfl);
-            if (ncl < cl) emit(ncl, cl);
+            const Bc = corners(nx, ny);
+            const bIdx = (wx, wy) => {
+              const lx = wx - nx, ly = wy - ny;
+              return lx === 0 ? (ly === 0 ? 0 : 3) : (ly === 0 ? 1 : 2);
+            };
+            const j0 = bIdx(P0[0], P0[1]), j1 = bIdx(P1[0], P1[1]);
+            // Lower wall: this floor above neighbour floor.
+            emit(P0, P1, Bc.floor[j0], Bc.floor[j1], Ac.floor[i0], Ac.floor[i1]);
+            // Upper wall: this ceiling below neighbour ceiling.
+            emit(P0, P1, Ac.ceil[i0], Ac.ceil[i1],
+              Math.max(Ac.ceil[i0], Bc.ceil[j0]), Math.max(Ac.ceil[i1], Bc.ceil[j1]));
           }
         }
       }

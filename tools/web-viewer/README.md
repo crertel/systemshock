@@ -82,11 +82,13 @@ ceilings follow the tile's mirror bits (MATCH / MIRROR / CFLAT / FFLAT) — e.g.
 FFLAT tile renders a flat floor under a sloped ceiling. Texture rotation
 (floor/ceiling) and L/R flip (walls) flags are applied.
 
-### Remaining simplifications
+Walls between tiles follow the actual per-corner floor/ceiling heights of the
+tile and its neighbour, so walls along sloped edges slant to match (a wall
+tapers to zero where the neighbouring floor rises to meet it). Wall V is locked
+to absolute world height so vertical texturing lines up across stacked tiles.
 
-- Walls between tiles use flat per-tile floor/ceiling heights, so a wall along a
-  sloped edge is drawn straight rather than following the slope. Wall V is locked
-  to absolute world height so vertical texturing lines up across stacked tiles.
+### Remaining simplification
+
 - The vertical-split (`VSPLIT`) tile is drawn as a single flat floor.
 
 ## Files

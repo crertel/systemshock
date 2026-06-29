@@ -162,6 +162,25 @@ export class LevelMap {
     return polys;
   }
 
+  // Floor and ceiling heights (in steps) at the 4 corners [SW, SE, NE, NW],
+  // derived from the slope polygons (corners not present in a diagonal tile
+  // keep the base height). Used to make walls follow sloped edges.
+  corners(te) {
+    const cp = [[0, 0], [1, 0], [1, 1], [0, 1]];
+    const floor = [te.floorH, te.floorH, te.floorH, te.floorH];
+    const ceil = [te.ceilH, te.ceilH, te.ceilH, te.ceilH];
+    const assign = (polys, arr) => {
+      for (const poly of polys) for (const p of poly) {
+        for (let i = 0; i < 4; i++) {
+          if (Math.abs(p.x - cp[i][0]) < 1e-6 && Math.abs(p.y - cp[i][1]) < 1e-6) arr[i] = p.z;
+        }
+      }
+    };
+    assign(this.floorPolys(te), floor);
+    assign(this.ceilPolys(te), ceil);
+    return { floor, ceil };
+  }
+
   isSolid(x, y) {
     if (!this.inBounds(x, y)) return true;
     return (this.tiles[(x + y * this.xSize) * 16] & 0x3f) === 0;
