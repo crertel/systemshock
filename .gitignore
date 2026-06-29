@@ -48,6 +48,10 @@ TestSimpleMain
 # 3rd Party builds
 build_ext
 
+# Nix
+/result
+/result-*
+
 # Save files
 CurrentGame.dat
 savgam*.dat
