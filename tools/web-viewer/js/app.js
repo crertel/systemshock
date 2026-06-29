@@ -7,6 +7,7 @@ import { decodeStrings } from './strings.js';
 import { decodeFont, fontToCanvas } from './font.js';
 import { findLevels, LevelMap, levelBase } from './map.js';
 import { TextureProvider, findTextureRes } from './textures.js';
+import { decodeModel } from './model.js';
 import { Viewer3D } from './viewer3d.js';
 
 const state = {
@@ -19,6 +20,7 @@ const state = {
   viewer3d: null,
   selection: null,
   current3D: null, // { res, level }
+  currentModel: null, // { res, id }
 };
 
 const els = {};
@@ -44,6 +46,7 @@ window.addEventListener('DOMContentLoaded', () => {
   els.palSelect.onchange = () => {
     state.activePal = state.palettes[els.palSelect.value]?.pal || fallbackPalette();
     if (state.current3D) open3DLevel(state.current3D.res, state.current3D.level);
+    else if (state.currentModel) renderModel(state.currentModel.res, state.currentModel.id);
     else if (state.selection) openResource(state.selection);
   };
   els.zoom.oninput = () => { state.zoom = +els.zoom.value; if (state.selection) openResource(state.selection); };
@@ -164,7 +167,34 @@ function selectRow(row) {
 function teardown3D() {
   if (state.viewer3d) { state.viewer3d.dispose(); state.viewer3d = null; }
   state.current3D = null;
+  state.currentModel = null;
   els.ceiling.parentElement.style.display = 'none';
+}
+
+function renderModel(res, id) {
+  teardown3D();
+  state.currentModel = { res, id };
+  state.selection = null;
+  els.detail.innerHTML = '';
+  els.ceiling.parentElement.style.display = 'none';
+  const wrap = document.createElement('div');
+  wrap.className = 'view3d';
+  els.detail.appendChild(wrap);
+  try {
+    const model = decodeModel(res, id, state.activePal);
+    const v = new Viewer3D(wrap);
+    state.viewer3d = v;
+    v.loadModel(model);
+    v.resize();
+    const info = document.createElement('div');
+    info.className = 'meta';
+    info.textContent = `obj3d model ${id} • ${model.faceCount} faces` +
+      `${model.lineCount ? ` • ${model.lineCount} lines` : ''} • drag to orbit, scroll to zoom`;
+    els.detail.appendChild(info);
+  } catch (err) {
+    wrap.innerHTML = `<div class="error">Failed to build model: ${err.message}</div>`;
+    console.error(err);
+  }
 }
 
 function open3DLevel(res, level) {
@@ -213,6 +243,7 @@ function openResource(item) {
       case 1: return renderStrings(res, entry);
       case 5: return renderPalette(res, entry);
       case 3: return renderFont(res, entry);
+      case 15: return renderModel(res, entry.id);
       default: return renderRaw(res, entry);
     }
   } catch (err) {

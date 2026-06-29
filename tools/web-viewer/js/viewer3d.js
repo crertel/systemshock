@@ -20,6 +20,13 @@ export class Viewer3D {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x0a0c10);
 
+    // Lights are only used by lit materials (models); the level uses
+    // MeshBasicMaterial and ignores them.
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+    dir.position.set(0.5, 1, 0.8);
+    this.scene.add(dir);
+
     this.camera = new THREE.PerspectiveCamera(60, 1, 0.1, 4000);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
@@ -83,12 +90,64 @@ export class Viewer3D {
     return tex;
   }
 
-  load(level, texProvider = null) {
+  _clearGroup() {
     if (this.meshGroup) {
       this.scene.remove(this.meshGroup);
       this.meshGroup.traverse((o) => o.geometry && o.geometry.dispose());
     }
     this.ceilingMeshes = [];
+  }
+
+  // Render a decoded obj3d model: colored polygons (lit) + optional wire lines.
+  loadModel(model) {
+    this._clearGroup();
+    const group = new THREE.Group();
+    const pos = [], col = [];
+    for (const f of model.faces) {
+      for (let i = 1; i < f.verts.length - 1; i++) {
+        for (const v of [f.verts[0], f.verts[i], f.verts[i + 1]]) {
+          pos.push(v[0], v[1], v[2]);
+          col.push(f.color[0], f.color[1], f.color[2]);
+        }
+      }
+    }
+    if (pos.length) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+      g.computeVertexNormals();
+      const mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+      group.add(new THREE.Mesh(g, mat));
+    }
+    if (model.lines.length) {
+      const lp = [], lc = [];
+      for (const l of model.lines) {
+        lp.push(l.a[0], l.a[1], l.a[2], l.b[0], l.b[1], l.b[2]);
+        for (let k = 0; k < 2; k++) lc.push(l.color[0], l.color[1], l.color[2]);
+      }
+      const lg = new THREE.BufferGeometry();
+      lg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
+      lg.setAttribute('color', new THREE.Float32BufferAttribute(lc, 3));
+      group.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ vertexColors: true })));
+    }
+
+    this.scene.add(group);
+    this.meshGroup = group;
+
+    // Frame to the bounding box.
+    const b = model.bbox;
+    const ctr = b.min.map((mn, i) => (mn + b.max[i]) / 2);
+    const size = Math.max(1e-3, ...b.max.map((mx, i) => mx - b.min[i]));
+    this.controls.target.set(ctr[0], ctr[1], ctr[2]);
+    this.camera.position.set(ctr[0] + size, ctr[1] + size * 0.6, ctr[2] + size * 1.4);
+    this.camera.near = size / 100;
+    this.camera.far = size * 100;
+    this.camera.updateProjectionMatrix();
+    this.resize();
+  }
+
+  load(level, texProvider = null) {
+    this._clearGroup();
     const group = new THREE.Group();
     const step = 1 / (1 << level.zShft);
 

@@ -42,6 +42,7 @@ time so the browser can fetch three.js from unpkg.
    - **font** → glyph atlas.
    - **3D level** (from `archive.dat`) → walkable level geometry; drag to orbit,
      scroll to zoom, right-drag to pan, toggle the ceiling.
+   - **obj3d model** (from `obj3d.res`) → the lit 3D object mesh; drag to orbit.
    - anything else → hex dump.
 
 ## What's implemented
@@ -56,6 +57,7 @@ time so the browser can fetch three.js from unpkg.
 | Fonts (mono + color glyph strips) | ✅ |
 | Level geometry: floors, ceilings, walls, ramps | ✅ |
 | Real `texture.res` textures on level geometry | ✅ (load `texture.res` + `gamepal.res`) |
+| 3D object models (`obj3d.res`, RTYPE_OBJ3D) | ✅ |
 
 Validated against a real DOS CD-ROM install: `texture.res` decodes 955 frames
 (16/32/64/128 px) with zero failures; all 16 levels parse from `archive.dat`;
@@ -70,6 +72,20 @@ with the real game bitmaps: each tile's floor/ceiling/wall texture index →
 `DataTexture`. The tile's light value (0=bright..15=dark) is baked into vertex
 color and multiplies the texture, so darker areas read correctly. If
 `texture.res` isn't loaded, faces fall back to hue-coded colors by texture index.
+
+## 3D object models
+
+`obj3d.res` models (resources 2300+) are stored as a bytecode for the engine's
+3D interpreter (`src/Libraries/3D/Source/interp.c`). `js/model.js` ports that
+interpreter to extract static geometry: it walks the opcode stream building
+points (`defres`/`multires`/`*_rel`) and emitting polygon/line faces
+(`polyres`/`tmap`/`lnres`), with colors from `setcolor` + the palette.
+Visibility culling is disabled so the whole model is captured (`jnorm` always
+continues, `sortnorm` traverses both BSP branches). Runtime-only opcodes are
+skipped: pointer-based sub-object calls (`icall`), stack parameters
+(`getparms`), and the per-object vpoint/vtext tables — so textured faces
+(`tmap`) render in a neutral color rather than with their runtime texture, and
+articulated sub-parts attached via `icall` are omitted.
 
 ## Geometry accuracy
 
@@ -103,6 +119,7 @@ js/bitmap.js      FLAT8 / RSD8 bitmap decode
 js/strings.js     string-table decode
 js/font.js        font glyph decode
 js/map.js         FullMap + MapElem parse, tile->corner-height
+js/model.js       obj3d bytecode interpreter -> static mesh
 js/textures.js    texture-number -> texture.res bitmap resolution
 js/viewer3d.js    three.js geometry builder + textures + orbit camera
 js/app.js         UI orchestration
