@@ -126,6 +126,8 @@ export class Viewer3D {
     // Textured faces grouped by texid -> one mesh each with the material map.
     const texGroups = new Map(); // texid -> { pos, uv, tex }
 
+    // SS object space has its vertical axis pointing opposite three.js's, so
+    // negate Y to render models right-side up.
     for (const f of model.faces) {
       const tex = f.uvs ? this._modelTexture(f.texid, matProvider) : null;
       if (tex) {
@@ -133,14 +135,14 @@ export class Viewer3D {
         if (!tg) { tg = { pos: [], uv: [], tex }; texGroups.set(f.texid, tg); }
         for (let i = 1; i < f.verts.length - 1; i++) {
           for (const k of [0, i, i + 1]) {
-            tg.pos.push(f.verts[k][0], f.verts[k][1], f.verts[k][2]);
+            tg.pos.push(f.verts[k][0], -f.verts[k][1], f.verts[k][2]);
             tg.uv.push(f.uvs[k][0], f.uvs[k][1]);
           }
         }
       } else {
         for (let i = 1; i < f.verts.length - 1; i++) {
           for (const k of [0, i, i + 1]) {
-            pos.push(f.verts[k][0], f.verts[k][1], f.verts[k][2]);
+            pos.push(f.verts[k][0], -f.verts[k][1], f.verts[k][2]);
             col.push(f.color[0], f.color[1], f.color[2]);
           }
         }
@@ -163,7 +165,7 @@ export class Viewer3D {
     if (model.lines.length) {
       const lp = [], lc = [];
       for (const l of model.lines) {
-        lp.push(l.a[0], l.a[1], l.a[2], l.b[0], l.b[1], l.b[2]);
+        lp.push(l.a[0], -l.a[1], l.a[2], l.b[0], -l.b[1], l.b[2]);
         for (let k = 0; k < 2; k++) lc.push(l.color[0], l.color[1], l.color[2]);
       }
       const lg = new THREE.BufferGeometry();
@@ -175,9 +177,10 @@ export class Viewer3D {
     this.scene.add(group);
     this.meshGroup = group;
 
-    // Frame to the bounding box.
+    // Frame to the bounding box (Y negated to match the geometry flip).
     const b = model.bbox;
     const ctr = b.min.map((mn, i) => (mn + b.max[i]) / 2);
+    ctr[1] = -ctr[1];
     const size = Math.max(1e-3, ...b.max.map((mx, i) => mx - b.min[i]));
     this.controls.target.set(ctr[0], ctr[1], ctr[2]);
     this.camera.position.set(ctr[0] + size, ctr[1] + size * 0.6, ctr[2] + size * 1.4);
