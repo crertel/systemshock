@@ -98,16 +98,51 @@ export class Viewer3D {
     this.ceilingMeshes = [];
   }
 
-  // Render a decoded obj3d model: colored polygons (lit) + optional wire lines.
-  loadModel(model) {
+  _modelTexture(texid, matProvider) {
+    if (!matProvider) return null;
+    if (this.texCache.has(texid)) return this.texCache.get(texid);
+    const img = matProvider.getImage(texid);
+    let tex = null;
+    if (img) {
+      tex = new THREE.DataTexture(img.data, img.w, img.h, THREE.RGBAFormat);
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.LinearMipmapLinearFilter;
+      tex.generateMipmaps = true;
+      tex.flipY = true;
+      tex.needsUpdate = true;
+    }
+    this.texCache.set(texid, tex);
+    return tex;
+  }
+
+  // Render a decoded obj3d model: textured/colored polygons (lit) + wire lines.
+  loadModel(model, matProvider = null) {
     this._clearGroup();
     const group = new THREE.Group();
+
+    // Untextured (flat-color) faces -> one vertex-colored mesh.
     const pos = [], col = [];
+    // Textured faces grouped by texid -> one mesh each with the material map.
+    const texGroups = new Map(); // texid -> { pos, uv, tex }
+
     for (const f of model.faces) {
-      for (let i = 1; i < f.verts.length - 1; i++) {
-        for (const v of [f.verts[0], f.verts[i], f.verts[i + 1]]) {
-          pos.push(v[0], v[1], v[2]);
-          col.push(f.color[0], f.color[1], f.color[2]);
+      const tex = f.uvs ? this._modelTexture(f.texid, matProvider) : null;
+      if (tex) {
+        let tg = texGroups.get(f.texid);
+        if (!tg) { tg = { pos: [], uv: [], tex }; texGroups.set(f.texid, tg); }
+        for (let i = 1; i < f.verts.length - 1; i++) {
+          for (const k of [0, i, i + 1]) {
+            tg.pos.push(f.verts[k][0], f.verts[k][1], f.verts[k][2]);
+            tg.uv.push(f.uvs[k][0], f.uvs[k][1]);
+          }
+        }
+      } else {
+        for (let i = 1; i < f.verts.length - 1; i++) {
+          for (const k of [0, i, i + 1]) {
+            pos.push(f.verts[k][0], f.verts[k][1], f.verts[k][2]);
+            col.push(f.color[0], f.color[1], f.color[2]);
+          }
         }
       }
     }
@@ -116,8 +151,14 @@ export class Viewer3D {
       g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
       g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
       g.computeVertexNormals();
-      const mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
-      group.add(new THREE.Mesh(g, mat));
+      group.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide })));
+    }
+    for (const tg of texGroups.values()) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(tg.pos, 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(tg.uv, 2));
+      g.computeVertexNormals();
+      group.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: tg.tex, side: THREE.DoubleSide })));
     }
     if (model.lines.length) {
       const lp = [], lc = [];

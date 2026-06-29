@@ -70,3 +70,35 @@ export function findTextureRes(files) {
   }
   return null;
 }
+
+// Model materials (citmat.res): MATERIAL_BASE + texid, compound item 0.
+export const MATERIAL_BASE = 475;
+
+export function findMaterialRes(files) {
+  for (const f of files) if (f.res.has(MATERIAL_BASE)) return f.res;
+  return null;
+}
+
+// Provider that resolves a model's tmap texid -> RGBA material image.
+export class MaterialProvider {
+  constructor(matRes, palette) {
+    this.res = matRes;
+    this.pal = palette;
+    this.cache = new Map();
+  }
+  getImage(texid) {
+    if (this.cache.has(texid)) return this.cache.get(texid);
+    let img = null;
+    const id = MATERIAL_BASE + texid;
+    if (this.res && this.res.has(id)) {
+      try {
+        const r = this.res.read(id);
+        const blob = r.compound ? r.items[0] : r.data;
+        const dec = decodeBitmap(blob);
+        img = { w: dec.w, h: dec.h, data: toRGBA(dec, this.pal, { opaque: true }) };
+      } catch { img = null; }
+    }
+    this.cache.set(texid, img);
+    return img;
+  }
+}

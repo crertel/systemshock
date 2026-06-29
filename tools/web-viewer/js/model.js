@@ -34,6 +34,7 @@ export function interpretModel(data, palette) {
   const vec = (o) => [fix(o), fix(o + 4), fix(o + 8)];
 
   const res = new Array(1024).fill(null); // resbuf: index -> [x,y,z]
+  const uvbuf = new Array(1024).fill(null); // index -> [u,v] in 0..1
   const faces = [];
   const lines = [];
   let color = DEFAULT_COLOR.slice();
@@ -109,13 +110,26 @@ export function interpretModel(data, palette) {
         case 31: o += 4; break;                   // GETPCOLOR
         case 32: o += 6; break;                   // GETPSCOLOR
         case 34: case 35: o += 6; break;          // VPNT_P / VPNT_V (runtime pts)
-        case 36: o += 12; break;                  // SETUV
-        case 37: o += 4 + u16(o + 2) * 10; break; // UVLIST
+        case 36:                                  // SETUV idx,u,v (fix 16.16 = 0..1)
+          uvbuf[u16(o + 2)] = [dv.getUint32(o + 4, true) / 65536, dv.getUint32(o + 8, true) / 65536];
+          o += 12; break;
+        case 37: {                                // UVLIST count, (idx,u,v)[count]
+          const count = u16(o + 2);
+          for (let k = 0; k < count; k++) {
+            const e = o + 4 + k * 10;
+            uvbuf[u16(e)] = [dv.getUint32(e + 2, true) / 65536, dv.getUint32(e + 6, true) / 65536];
+          }
+          o += 4 + count * 10; break;
+        }
         case 38: {                                // TMAP_OP texid,count,idx[count]
-          const count = u16(o + 4);
-          const verts = [];
-          for (let k = 0; k < count; k++) verts.push(pt(u16(o + 6 + k * 2)));
-          if (verts.length >= 3) faces.push({ verts, color: TMAP_COLOR.slice() });
+          const texid = u16(o + 2), count = u16(o + 4);
+          const verts = [], uvs = [];
+          for (let k = 0; k < count; k++) {
+            const idx = u16(o + 6 + k * 2);
+            verts.push(pt(idx));
+            uvs.push(uvbuf[idx] || [0, 0]);
+          }
+          if (verts.length >= 3) faces.push({ verts, uvs, texid, color: TMAP_COLOR.slice() });
           o += 6 + count * 2; break;
         }
         case 39: o += 8; break;                   // DBG (header / no-op)

@@ -30,6 +30,7 @@ time so the browser can fetch three.js from unpkg.
    - `gamepal.res` — load this first so images get the correct palette.
    - `texture.res`, `objart.res`, `gamescr.res` — sprites/textures.
    - `cybstrng.res` — game strings.
+   - `obj3d.res` — 3D object models (+ `citmat.res` for their textures).
    - `archive.dat` — the levels (enables the 3D view).
    You can select several at once; palettes from any file populate the
    **Palette** dropdown and apply globally.
@@ -58,6 +59,7 @@ time so the browser can fetch three.js from unpkg.
 | Level geometry: floors, ceilings, walls, ramps | ✅ |
 | Real `texture.res` textures on level geometry | ✅ (load `texture.res` + `gamepal.res`) |
 | 3D object models (`obj3d.res`, RTYPE_OBJ3D) | ✅ |
+| Textured models (`citmat.res` materials + model UVs) | ✅ (load `citmat.res` + `gamepal.res`) |
 
 Validated against a real DOS CD-ROM install: `texture.res` decodes 955 frames
 (16/32/64/128 px) with zero failures; all 16 levels parse from `archive.dat`;
@@ -81,11 +83,18 @@ interpreter to extract static geometry: it walks the opcode stream building
 points (`defres`/`multires`/`*_rel`) and emitting polygon/line faces
 (`polyres`/`tmap`/`lnres`), with colors from `setcolor` + the palette.
 Visibility culling is disabled so the whole model is captured (`jnorm` always
-continues, `sortnorm` traverses both BSP branches). Runtime-only opcodes are
-skipped: pointer-based sub-object calls (`icall`), stack parameters
-(`getparms`), and the per-object vpoint/vtext tables — so textured faces
-(`tmap`) render in a neutral color rather than with their runtime texture, and
-articulated sub-parts attached via `icall` are omitted.
+continues, `sortnorm` traverses both BSP branches).
+
+Textured faces (`tmap`) are rendered with their real material: the texid maps to
+`citmat.res` material `475 + texid` (item 0), decoded with the palette and
+applied with the model's `setuv`/`uvlist` texture coordinates. **Load
+`citmat.res`** (and `gamepal.res`) alongside `obj3d.res` to see textured models;
+without it, textured faces fall back to a neutral color.
+
+Stack-parameter opcodes (`getparms`) and the runtime vpoint table are skipped.
+Pointer-based sub-object calls (`icall`, used for articulated parts) are also
+skipped — but none of the 80 shipped game models actually use `icall`, so in
+practice every model renders completely.
 
 ## Geometry accuracy
 

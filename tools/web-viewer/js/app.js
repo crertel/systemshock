@@ -6,7 +6,7 @@ import { decodeBitmap, bitmapToCanvas } from './bitmap.js';
 import { decodeStrings } from './strings.js';
 import { decodeFont, fontToCanvas } from './font.js';
 import { findLevels, LevelMap, levelBase } from './map.js';
-import { TextureProvider, findTextureRes } from './textures.js';
+import { TextureProvider, findTextureRes, MaterialProvider, findMaterialRes } from './textures.js';
 import { decodeModel } from './model.js';
 import { Viewer3D } from './viewer3d.js';
 
@@ -182,14 +182,16 @@ function renderModel(res, id) {
   els.detail.appendChild(wrap);
   try {
     const model = decodeModel(res, id, state.activePal);
+    const matRes = findMaterialRes(state.files);
+    const matProvider = matRes ? new MaterialProvider(matRes, state.activePal) : null;
     const v = new Viewer3D(wrap);
     state.viewer3d = v;
-    v.loadModel(model);
+    v.loadModel(model, matProvider);
     v.resize();
     const info = document.createElement('div');
     info.className = 'meta';
     info.textContent = `obj3d model ${id} • ${model.faceCount} faces` +
-      `${model.lineCount ? ` • ${model.lineCount} lines` : ''} • drag to orbit, scroll to zoom`;
+      `${matProvider ? '' : ' • load citmat.res for textures'} • drag to orbit, scroll to zoom`;
     els.detail.appendChild(info);
   } catch (err) {
     wrap.innerHTML = `<div class="error">Failed to build model: ${err.message}</div>`;
